@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego del Impostor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
+
+    <div id="app" class="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl text-center">
+        
+        <div id="setup-view">
+            <h1 class="text-3xl font-bold mb-2 text-indigo-400">🕵️ El Impostor</h1>
+            <p class="text-slate-400 mb-6 text-sm">Configura la partida</p>
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Total Jugadores</label>
+                    <input type="number" id="total-players" min="3" value="5" class="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Número de Impostores</label>
+                    <input type="number" id="total-impostors" min="1" value="1" class="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                </div>
+                <button onclick="startGame()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl font-bold text-lg shadow-lg transform active:scale-95 transition">
+                    ¡Repartir Roles!
+                </button>
+            </div>
+        </div>
+
+        <div id="reveal-view" class="hidden">
+            <h2 id="player-turn-text" class="text-xl font-medium mb-6 text-slate-300 italic"></h2>
+            
+            <div id="card" class="relative bg-slate-700 h-56 flex items-center justify-center rounded-2xl cursor-pointer border-4 border-slate-600 hover:border-indigo-500 transition-all mb-8 shadow-inner" onclick="toggleSecret()">
+                <div id="secret-content" class="text-center p-4">
+                    <p id="tap-instruction" class="text-indigo-300 font-bold animate-pulse">TOCAR PARA REVELAR</p>
+                    <div id="secret-info" class="hidden">
+                        <p id="role-label" class="text-sm uppercase tracking-widest text-slate-400 mb-2"></p>
+                        <p id="secret-text" class="text-3xl font-black text-white"></p>
+                    </div>
+                </div>
+            </div>
+
+            <button id="next-btn" onclick="nextTurn()" class="hidden w-full bg-slate-100 text-slate-900 hover:bg-white py-4 rounded-xl font-bold text-lg transition">
+                Entregar al siguiente
+            </button>
+        </div>
+
+        <div id="game-view" class="hidden">
+            <div class="mb-8">
+                <div class="inline-block p-4 bg-red-900/30 rounded-full mb-4">
+                    <span class="text-4xl">🗣️</span>
+                </div>
+                <h2 class="text-3xl font-bold text-white mb-2">¡A Debatir!</h2>
+                <p class="text-slate-400">Los roles han sido asignados. El impostor debe pasar desapercibido.</p>
+            </div>
+            <button onclick="resetGame()" class="w-full border-2 border-slate-600 hover:bg-slate-700 py-3 rounded-xl font-semibold transition">
+                Nueva Partida
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Simulación de carga de JSON (Puedes reemplazarlo con un fetch si lo deseas)
+        const movieDatabase = ["Titanic", "El Padrino", "Avatar", "Harry Potter", "Shrek", "Interestelar", "Star Wars", "Toy Story", "Joker", "El Rey León", "Emilia Mernes", "Charly García", "Cazzu", "Duki", "Messi", "Córdoba", "Villa María", "Nala", "Minecraft", "Navidad", "Estados unidos","Maradona", "Fernet", "Luck Ra", "La joaqui", "Rosalia", "Mirtha Legrand", "Bingo", "Bajo", "Bosque", "Tigre", "Azafata", "Piano", "Ping Pong", "Asado", "Limón", "Trueno", "Wos", "Cama", ];
+
+        let gameState = {
+            movie: "",
+            players: [], // Lista mezclada de roles
+            currentIndex: 0,
+            showingSecret: false
+        };
+
+        // Algoritmo Fisher-Yates para mezcla aleatoria real
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function startGame() {
+            const nPlayers = parseInt(document.getElementById('total-players').value);
+            const nImpostors = parseInt(document.getElementById('total-impostors').value);
+            
+            if (nImpostors >= nPlayers || nPlayers < 3) {
+                alert("Configuración no válida. Debe haber al menos 3 jugadores y menos impostores que jugadores.");
+                return;
+            }
+
+            // Seleccionar película aleatoria
+            gameState.movie = movieDatabase[Math.floor(Math.random() * movieDatabase.length)];
+            gameState.currentIndex = 0;
+            gameState.showingSecret = false;
+            
+            // Crear el mazo de roles
+            let roles = [];
+            // Añadir impostores
+            for(let i = 0; i < nImpostors; i++) roles.push("IMPOSTOR");
+            // Añadir ciudadanos
+            for(let i = 0; i < (nPlayers - nImpostors); i++) roles.push("CIUDADANO");
+
+            // MEZCLA CRUCIAL: Aquí es donde se decide el orden aleatorio
+            gameState.players = shuffle(roles);
+
+            // Cambiar de vista
+            document.getElementById('setup-view').classList.add('hidden');
+            document.getElementById('reveal-view').classList.remove('hidden');
+            updateTurnUI();
+        }
+
+        function updateTurnUI() {
+            gameState.showingSecret = false;
+            document.getElementById('player-turn-text').innerText = `Jugador ${gameState.currentIndex + 1}, es tu turno`;
+            
+            // Resetear tarjeta
+            document.getElementById('tap-instruction').classList.remove('hidden');
+            document.getElementById('secret-info').classList.add('hidden');
+            document.getElementById('next-btn').classList.add('hidden');
+            document.getElementById('card').classList.replace('border-indigo-500', 'border-slate-600');
+        }
+
+        function toggleSecret() {
+            if (gameState.showingSecret) return; // Evitar clics repetidos
+
+            const role = gameState.players[gameState.currentIndex];
+            const isImpostor = role === "IMPOSTOR";
+            
+            const roleLabel = document.getElementById('role-label');
+            const secretText = document.getElementById('secret-text');
+
+            roleLabel.innerText = isImpostor ? "Tu Rol:" : "La Película es:";
+            secretText.innerText = isImpostor ? "🕵️ ERES EL IMPOSTOR" : gameState.movie;
+            secretText.className = isImpostor ? "text-2xl font-black text-red-500" : "text-3xl font-black text-white";
+
+            // Mostrar contenido
+            document.getElementById('tap-instruction').classList.add('hidden');
+            document.getElementById('secret-info').classList.remove('hidden');
+            document.getElementById('next-btn').classList.remove('hidden');
+            document.getElementById('card').classList.replace('border-slate-600', 'border-indigo-500');
+            
+            gameState.showingSecret = true;
+        }
+
+        function nextTurn() {
+            gameState.currentIndex++;
+            if (gameState.currentIndex < gameState.players.length) {
+                updateTurnUI();
+            } else {
+                document.getElementById('reveal-view').classList.add('hidden');
+                document.getElementById('game-view').classList.remove('hidden');
+            }
+        }
+
+        function resetGame() {
+            // Reiniciar estado
+            document.getElementById('game-view').classList.add('hidden');
+            document.getElementById('setup-view').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
